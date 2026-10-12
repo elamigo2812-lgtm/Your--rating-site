@@ -15,10 +15,48 @@ const server = http.createServer((req,res)=>{
     res.writeHead(status,{'Content-Type':type,'X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});
     res.end(body);
   };
+
   if(req.method==='GET' && (req.url==='/' || req.url==='/index.html')){
     fs.readFile(path.join(root,'index.html'),(err,data)=>err?send(500,'Page unavailable'):send(200,data,'text/html; charset=utf-8'));
     return;
   }
+
+  // --- ADMIN GALLERY ROUTE (Thlalak hawngtu leh entu) ---
+  if(req.method==='GET' && req.url==='/admin-photos'){
+    fs.readdir(uploads, (err, files) => {
+      if(err) return send(500, 'Error reading files');
+      const imageFiles = files.filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+      
+      let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Admin Photos</title><style>body{font-family:sans-serif;background:#111;color:#fff;padding:20px;text-align:center;}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:15px;margin-top:20px;}img{width:100%;height:150px;object-fit:cover;border-radius:8px;border:2px solid #333;}</style></head><body>`;
+      html += `<h2>Uploaded Selfies (${imageFiles.length})</h2><div class="grid">`;
+      
+      if(imageFiles.length === 0){
+        html += `<p style="grid-column:1/-1;">No photos uploaded yet.</p>`;
+      } else {
+        imageFiles.forEach(f => {
+          html += `<div><a href="/uploads/${f}" target="_blank"><img src="/uploads/${f}" alt="Selfie" /></a></div>`;
+        });
+      }
+      
+      html += `</div></body></html>`;
+      send(200, html, 'text/html; charset=utf-8');
+    });
+    return;
+  }
+
+  // --- SERVE UPLOADED IMAGES ---
+  if(req.method==='GET' && req.url.startsWith('/uploads/')){
+    const fileName = path.basename(req.url);
+    const filePath = path.join(uploads, fileName);
+    fs.readFile(filePath, (err, data) => {
+      if(err) return send(404, 'File not found');
+      const ext = path.extname(fileName).toLowerCase();
+      const mime = ext==='.png'?'image/png':ext==='.webp'?'image/webp':'image/jpeg';
+      send(200, data, mime);
+    });
+    return;
+  }
+
   if(req.method==='POST' && req.url==='/upload'){
     const chunks=[];let size=0;
     req.on('data',chunk=>{
